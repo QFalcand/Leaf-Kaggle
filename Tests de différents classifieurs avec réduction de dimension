@@ -1,0 +1,97 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Feb 12 19:40:24 2017
+
+@author: Utilisateur
+"""
+
+import pandas as pd
+import numpy as np
+from sklearn.metrics import *
+from sklearn import tree
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn import svm
+from sklearn.model_selection import StratifiedKFold
+from sklearn.neural_network import MLPClassifier
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+
+train = pd.read_csv('train.csv')
+test = pd.read_csv('test.csv')
+
+t = train.as_matrix()
+
+X = [['margins', t[:,2:65]], ['shapes', t[:,66:129]], ['textures', t[:,130:194]]]
+Y = t[:,1]
+
+col = ['Feature', 'dim1', 'dim2', 'dim3']
+df = pd.DataFrame([], columns = col)
+
+test = True
+for x in X:
+    
+    pca = PCA(n_components = 3)
+    pca.fit(x[1])
+    
+    a = [x[0]] + list(pca.explained_variance_ratio_)
+    
+    d = pd.DataFrame([a], columns = col)
+    df = df.append(d, ignore_index = True)
+    
+    xtransform = pca.fit_transform(x[1])
+    
+    if test:
+        Xprim = xtransform
+    else:
+        Xprim = np.c_[Xprim, xtransform]
+
+    test = False
+    
+print(df)
+
+classifieurs = [['Arbre de décision', tree.DecisionTreeClassifier(max_depth = 10)],
+                ['SVM', svm.SVC(decision_function_shape='ovo')],
+                ['Random Forest', RandomForestClassifier(n_estimators=10, max_depth=None, min_samples_split=2, random_state=0)],
+                ['Adaboost avec SVM', AdaBoostClassifier(n_estimators=100, algorithm = 'SAMME', base_estimator = svm.SVC(decision_function_shape='ovo'))],
+                ['Adaboost avec Random Forest', RandomForestClassifier(n_estimators=10, max_depth=None, min_samples_split=2, random_state=0)],
+                ['Reseau Neurones', MLPClassifier()],
+                ['Kppv', KNeighborsClassifier(3)]]
+       
+results = {}
+
+skf = StratifiedKFold(n_splits=10)
+
+test = True
+for train_index, test_index in skf.split(Xprim, Y):
+    
+    X_train, X_test = Xprim[train_index], Xprim[test_index]
+    Y_train, Y_test = Y[train_index], Y[test_index]
+
+    for cf in classifieurs:
+
+        clf = cf[1].fit(X_train, Y_train)
+        train_prediction = clf.predict(X_test)
+        
+        acc = accuracy_score(Y_test, train_prediction)
+        Fmesure = f1_score(Y_test, train_prediction, average = 'macro')
+        precision = precision_score(Y_test, train_prediction, average = 'macro')
+        recall = recall_score(Y_test, train_prediction, average = 'macro') 
+        
+        if test:
+            results[cf[0]] = [acc, Fmesure, precision, recall]
+        else:
+            results[cf[0]] = [x+y for x, y in zip(results[cf[0]], [acc, Fmesure, precision, recall])]
+    
+    test = False
+
+col = ['Classifieurs', 'Fmesure', 'precision', 'recall', 'acc']
+df = pd.DataFrame([], columns = col)
+
+for cle in results.keys():
+    a = [cle] + [x/10 for x in results[cle]]
+    d = pd.DataFrame([a], columns = col)
+    df = df.append(d, ignore_index = True)
+
+df = df.set_index('Classifieurs')
+print(df)
