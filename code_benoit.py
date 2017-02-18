@@ -223,7 +223,7 @@ def generation_train_test(X, Y):
     d'un échantillon donné en entrée, avec conservation du pourcentage d'exemples
     de chaque classe. Ensemble de test = 10% du départ'''
     
-    skf = StratifiedShuffleSplit(n_splits = 10)
+    skf = StratifiedShuffleSplit(n_splits = 1, test_size=0.1)
     
     list_ind = list(skf.split(X, Y))
     
